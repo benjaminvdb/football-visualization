@@ -91,14 +91,6 @@ public class Judge {
 
     private void checkBallOutside() {
         Ball b = simulator.ball;
-
-        if (b.colliding(simulator.fieldArea)) {
-            ballOutsideTimer.reset(time);
-        } else {
-            if (ballOutsideTimer.triggered(time)) {
-                System.out.println("uitbal");
-            }
-        }
     }
 
     //kijk of er een aftrap is in de komende minuut
