@@ -606,9 +606,9 @@ public class GameController implements Drawable, Runnable {
     //if someone has a red card the distance is 0 because he is out of the game
     private double calculateDistance(PVector pos1, PVector pos2) {
         //only needed for players....
-//        if (redcard(pos1, pos2)) {
-//            return 0;
-//        }
+        if (redcard(pos1, pos2)) {
+            return 0;
+        }
         float x = pos1.x;
         float y = pos1.y;
         float x2 = pos2.x;
@@ -1042,9 +1042,9 @@ public class GameController implements Drawable, Runnable {
             float y1 = currentPosition.y * scale;
             float x2 = futurePosition.x * scale;
             float y2 = futurePosition.y * scale;
-//            if (!redcard(currentPosition, futurePosition)) {
+			if (!redcard(currentPosition, futurePosition)) {
                 canvas.line(x1, y1, x2, y2);
-//            }
+            }
         }
         canvas.translate(-simulatorPos.x, -simulatorPos.y);
 
