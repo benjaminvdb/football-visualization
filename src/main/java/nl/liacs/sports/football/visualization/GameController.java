@@ -18,7 +18,7 @@ public class GameController implements Drawable, Runnable {
     private static final Logger log = LoggerFactory.getLogger(SoccerSimulator.class);
 
     //indication of the amount of frames per match, edited in getmatchdetails
-    public int frames = 150000;
+    public int frames = 138570;
     //first and second half, amount of frames is stored in here
     public int[] sections = new int[2];
     // Array of Robots currently registered in this game, 25, 22 players 3 referees
@@ -649,13 +649,8 @@ public class GameController implements Drawable, Runnable {
     public void getMatchDetails() throws IllegalAccessException, InstantiationException, ClassNotFoundException {
         System.out.println("match details");
         try {
-//            con = SoccerSimulator.getConnection();
-            Connection con = SoccerSimulator.getConnection();
-            Statement stmt = con.createStatement();
-            stmt.execute("SELECT * FROM players LIMIT 1");
-            ResultSet rs2 = stmt.getResultSet();
-            System.out.println(rs2.getString(2));
-
+			con = SoccerSimulator.getConnection();
+			
             stmt = con.createStatement();
             String sql = "select max(frame_number) as framess, frames.section from frames group by frames.section;";
             ResultSet rs = stmt.executeQuery(sql);
