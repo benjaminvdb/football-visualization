@@ -118,10 +118,9 @@ public class Judge {
 
     private void checkGoal(PVector[] ballpositions, int ball, float time) {
         Ball b = simulator.ball;
-
-        if (actualGoal(ballpositions, ball, time) && b.colliding(simulator.goalLeft) && !b.colliding(simulator.fieldArea)) {
+        if (actualGoal(ballpositions, ball, time) && b.colliding(simulator.goalLeft) ) {
             controller.addPointsFor(TeamSide.RIGHT, 1);
-        } else if (actualGoal(ballpositions, ball, time) && b.colliding(simulator.goalRight) && !b.colliding(simulator.fieldArea)) {
+        } else if (actualGoal(ballpositions, ball, time) && b.colliding(simulator.goalRight)) {
             controller.addPointsFor(TeamSide.LEFT, 1);
         }
     }

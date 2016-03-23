@@ -17,13 +17,13 @@ public class GameSimulator implements Drawable {
     // Blocks used to define neutral spots and see if something is hitting it
     //public Block[] neutralSpots = new Block[4];
     // This block is not simulated, but exists to define the inner field area
-    public Block fieldArea;
+    //public Block fieldArea;
     public Goal goalLeft, goalRight;
     public PVector fieldCenter;
     float lastT = 0;
     //	public GoalWall[] goalWalls = new GoalWall[4];
     private Vector<Drawable> drawables = new Vector<Drawable>();
-    private Block[] walls = new Block[4];
+    //private Block[] walls = new Block[4];
 
     GameSimulator() {
         reset();
@@ -53,7 +53,7 @@ public class GameSimulator implements Drawable {
         drawables.add(field);
 
         // Create inner field area
-        fieldArea = new Block(FIELD_W / 2, FIELD_H / 2, FIELD_W - field.space * 2, FIELD_H - field.space * 2);
+        //fieldArea = new Block(FIELD_W / 2, FIELD_H / 2, FIELD_W - field.space * 2, FIELD_H - field.space * 2);
         // drawables.add(fieldArea);
 
         // Save field center
@@ -67,10 +67,10 @@ public class GameSimulator implements Drawable {
 
         //
         // Make Walls
-        walls[0] = new Block((FIELD_W / 2), -2f, FIELD_W + 7f, WALL_TICK); // TOP
-        walls[1] = new Block(FIELD_W / 2, FIELD_H + 2f, FIELD_W + 7f, WALL_TICK); // BOTTOM
-        walls[2] = new Block(-3f, FIELD_H / 2, WALL_TICK, FIELD_H + WALL_TICK + 4f); // LEFT
-        walls[3] = new Block(FIELD_W + 3f, FIELD_H / 2, WALL_TICK, FIELD_H + WALL_TICK + 4f); // RIGHT
+        //walls[0] = new Block((FIELD_W / 2), -2f, FIELD_W + 7f, WALL_TICK); // TOP
+        //walls[1] = new Block(FIELD_W / 2, FIELD_H + 2f, FIELD_W + 7f, WALL_TICK); // BOTTOM
+        //walls[2] = new Block(-3f, FIELD_H / 2, WALL_TICK, FIELD_H + WALL_TICK + 4f); // LEFT
+        //walls[3] = new Block(FIELD_W + 3f, FIELD_H / 2, WALL_TICK, FIELD_H + WALL_TICK + 4f); // RIGHT
 
         for (int i = 0; i < 4; i++) {
             simulatables.add(walls[i]);
@@ -101,9 +101,9 @@ public class GameSimulator implements Drawable {
         // drawables.add(goalRight);
 
         // Make Goal Walls
-        float tickness = field.line_width * 2;
-        yDelta = (field.y_goal + tickness) / 2;
-        xDelta = (FIELD_W - field.space * 2 - field.line_width * 2 + field.space) / 2;
+        //float tickness = field.line_width * 2;
+        //yDelta = (field.y_goal + tickness) / 2;
+        //xDelta = (FIELD_W - field.space * 2 - field.line_width * 2 + field.space) / 2;
         //goalWalls[0] = new GoalWall(xZero - xDelta, yZero - yDelta, field.space, tickness);
         //goalWalls[1] = new GoalWall(xZero - xDelta, yZero + yDelta, field.space, tickness);
         //goalWalls[2] = new GoalWall(xZero + xDelta, yZero - yDelta, field.space, tickness);
