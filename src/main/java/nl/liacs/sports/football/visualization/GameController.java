@@ -29,6 +29,7 @@ public class GameController implements Drawable, Runnable {
 
     //indication of the amount of frames per match, edited in getmatchdetails
     public int frames = 138570;
+	public boolean speed = false;
     //first and second half, amount of frames is stored in here
     public int[] sections = new int[2];
     // Array of Robots currently registered in this game, 25, 22 players 3 referees
@@ -847,7 +848,16 @@ public class GameController implements Drawable, Runnable {
             simulator.ball.setPosition(ballpositions[frame]);
 
 //            voronoiCells = computeVoronoi();
-
+			
+			//zodat de poppetjes niet te hard lopen en de tijd niet te snel gaat!
+			if(speed){
+				try{
+					Thread.sleep(22);
+				} catch(InterruptedException ex){
+					Thread.currentThread().interrupt();
+				}
+			}
+			
             if (frame < frames)
                 frame++;
         }
@@ -860,6 +870,10 @@ public class GameController implements Drawable, Runnable {
             frame = frame + 1500;
         }
     }
+	
+	public void toggleSpeed(){
+		speed = !speed;
+	}
 
     //pres p to go back a minute
     public void PreviousMinute() {
@@ -1085,7 +1099,7 @@ public class GameController implements Drawable, Runnable {
             float x2 = futurePosition.x * scale;
             float y2 = futurePosition.y * scale;
 			if (!redcard(currentPosition, futurePosition)) {
-                canvas.line(x1, y1, x2, y2);
+                //canvas.line(x1, y1, x2, y2);
             }
         }
         canvas.translate(-simulatorPos.x, -simulatorPos.y);

@@ -162,12 +162,15 @@ public class SoccerSimulator extends PApplet {
                 debug += "\n\t"+r;
 
             System.out.println(debug);
-        } else if (key == 's') {
+        } else if (key == 'r') {
+			System.out.println("Speed of time is toggled");
+			controller.toggleSpeed();
+		} else if (key == 's') {
             System.out.println("Skip 1 minute");
             controller.skipMinute();
         } else if (key == 'p') {
             System.out.println("go back 1 minute");
             controller.PreviousMinute();
-        }
+        } 
     }
 }
