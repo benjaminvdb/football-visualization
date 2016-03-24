@@ -1,5 +1,12 @@
 package nl.liacs.sports.football.visualization;
 
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Envelope;
+import com.vividsolutions.jts.geom.GeometryCollection;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.triangulate.VoronoiDiagramBuilder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import processing.core.PApplet;
 import processing.core.PVector;
@@ -16,6 +24,8 @@ import processing.core.PVector;
 public class GameController implements Drawable, Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(SoccerSimulator.class);
+
+    private final static long LIMIT = Long.MAX_VALUE;
 
     //indication of the amount of frames per match, edited in getmatchdetails
     public int frames = 138570;
@@ -29,8 +39,11 @@ public class GameController implements Drawable, Runnable {
     public PVector[] refposition1 = new PVector[frames];
     public PVector[] refposition2 = new PVector[frames];
     public PVector[] refposition3 = new PVector[frames];
+
+    /* NOTE: player positions are stored as player-then-frame instead of the intuitive frame-then-player!! */
     //possitions of the players in the field. this is in meters. left upper corner = 0.0 PVectors have an x and y
     public PVector[][] playersPos = new PVector[22][frames];
+
     // Instantied teams
     Team a, b, ref;
     PVector simulatorPos = new PVector(0, 150);
@@ -55,6 +68,8 @@ public class GameController implements Drawable, Runnable {
     private float time;
     //frame nummer in simulator
     private int frame = 0;
+
+    private GeometryCollection voronoiCells;
 
 
   /*
@@ -677,7 +692,7 @@ public class GameController implements Drawable, Runnable {
             String sql = "SELECT referee_measurement.x, referee_measurement.y, referee_measurement.referee_id, frames.frame_id " +
                     "FROM referee_measurement, frames " +
                     "WHERE referee_measurement.frame_id = frames.frame_id " +
-                    "ORDER BY frames.frame_id";
+                    "ORDER BY frames.frame_id LIMIT " + LIMIT;
 
             rs = stmt.executeQuery(sql);
 
@@ -716,7 +731,7 @@ public class GameController implements Drawable, Runnable {
             String sql = "SELECT player_measurements.player_id, player_measurements.x, player_measurements.y, frames.frame_id " +
                     "FROM player_measurements, frames " +
                     "WHERE player_measurements.frame_id = frames.frame_id " +
-                    "ORDER BY frames.frame_id";
+                    "ORDER BY frames.frame_id LIMIT " + LIMIT;
             ResultSet rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 float data_x = rs.getFloat("x");
@@ -743,7 +758,7 @@ public class GameController implements Drawable, Runnable {
             String sql = "SELECT ball_measurements.x, ball_measurements.y, ball_measurements.z, ball_measurements.possession, frames.frame_id " +
                     "FROM ball_measurements, frames " +
                     "WHERE ball_measurements.frame_id = frames.frame_id " +
-                    "ORDER BY frame_id";
+                    "ORDER BY frame_id LIMIT " + LIMIT;
             ResultSet rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
@@ -785,6 +800,30 @@ public class GameController implements Drawable, Runnable {
         ref3.setState(refposition3[frame], 24);
     }
 
+    public GeometryCollection computeVoronoi() {
+        List<Coordinate> coordinates = new ArrayList<>();
+        for (int i = 0; i < playersPos.length; i++) {
+            double x = (double) playersPos[i][frame].x;
+            double y = (double) playersPos[i][frame].y;
+
+            coordinates.add(new Coordinate(x, y));
+        }
+
+        VoronoiDiagramBuilder vdbuilder = new VoronoiDiagramBuilder();
+        vdbuilder.setClipEnvelope(new Envelope(0, 105, 0, 68));
+        vdbuilder.setSites(coordinates);
+        GeometryFactory gf = new GeometryFactory();
+        GeometryCollection gc = (GeometryCollection)vdbuilder.getDiagram(new GeometryFactory());
+
+//        System.out.println("Printing Voronoi cells new style!! Size is " + gc.getNumGeometries());
+        for (int i = 0; i < gc.getNumGeometries(); i++) {
+            Polygon polygon = (Polygon)gc.getGeometryN(i);
+//            System.out.println(polygon.toString());
+        }
+
+        return gc;
+    }
+
     //#######################################################################WORDT CONTINUE UITGEVOERD##########################
     //sets the positions of the ball and players ect per frame
     public void run() {
@@ -806,6 +845,9 @@ public class GameController implements Drawable, Runnable {
             setPlayersState(frame);
             setRefsState(frame);
             simulator.ball.setPosition(ballpositions[frame]);
+
+//            voronoiCells = computeVoronoi();
+
             if (frame < frames)
                 frame++;
         }
@@ -1050,6 +1092,24 @@ public class GameController implements Drawable, Runnable {
 
         //draw line between the direct opponents.
         //drawline(canvas, scale); //comment this out if you dont load players opponents
+
+        /* Draw Voronoi cells */
+        if (voronoiCells != null && false) { // currently disabled
+            canvas.translate(simulatorPos.x, simulatorPos.y);
+            for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
+                Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
+
+                /* NOTE: beginShape() cannot be translated so we get a wrongly scaled Voronoi diagram. */
+                canvas.beginShape();
+                for (Coordinate coordinate : polygon.getCoordinates()) {
+                    canvas.vertex((float) coordinate.x, (float) coordinate.y);
+//            canvas.line((float)edge.x1, (float)edge.x2, (float)edge.y1, (float)edge.y2);
+                }
+                canvas.endShape();
+            }
+            canvas.translate(-simulatorPos.x, -simulatorPos.y);
+        }
+
     }
 
     /*

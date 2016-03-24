@@ -54,8 +54,8 @@ public class SoccerSimulator extends PApplet {
         }
     }
 
-
-    public void setup() {
+    @Override
+    public void settings() {
     /*
     * Define the teams for the current match here
     */
@@ -81,7 +81,9 @@ public class SoccerSimulator extends PApplet {
         controller.getball();
         controller.getPlayers();
         controller.getReferees();
-        controller.validateData();
+
+        /* We don't need this on every start. */
+//        controller.validateData();
 
         //######### do some calculations
         //controller.getPressureMeasurements();
@@ -92,10 +94,10 @@ public class SoccerSimulator extends PApplet {
         //controller.inserDistanceInDatabase();
         //controller.setDirectOpponent();
         //controller.getballPossessionSwitch();
-
         size((int)controller.getWidth(SCALE) + 200, (int)controller.getHeight(SCALE)+100);
     }
 
+    @Override
     public void draw() {
 
         background(255);
@@ -107,6 +109,7 @@ public class SoccerSimulator extends PApplet {
     }
 
     /* Finds out what is closer to the ball that can be moved, and then move to that position */
+    @Override
     public void mouseDragged() {
         // Checks what is closest to the mouse cursos (Robots and Ball)
         PVector mousePoint = new PVector((mouseX - 100) / SCALE, (mouseY - 150) / SCALE);
@@ -133,6 +136,7 @@ public class SoccerSimulator extends PApplet {
         }
     }
 
+    @Override
     public void keyPressed() {
         if (key == ' ') {
             if (!controller.hasStarted()) {
