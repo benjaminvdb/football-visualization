@@ -28,7 +28,7 @@ public class GameController implements Drawable, Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(SoccerSimulator.class);
 
-    private final static long LIMIT = 100000; //Long.MAX_VALUE;
+    private final static long LIMIT = Long.MAX_VALUE; //100000; //Long.MAX_VALUE;
 
     //indication of the amount of frames per match, edited in getmatchdetails
     public int frames = 138570;
