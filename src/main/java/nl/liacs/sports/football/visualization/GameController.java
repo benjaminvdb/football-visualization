@@ -2,6 +2,7 @@ package nl.liacs.sports.football.visualization;
 
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
+import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.Polygon;
@@ -15,8 +16,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import processing.core.PApplet;
 import processing.core.PVector;
@@ -25,11 +28,11 @@ public class GameController implements Drawable, Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(SoccerSimulator.class);
 
-    private final static long LIMIT = Long.MAX_VALUE;
+    private final static long LIMIT = 100000; //Long.MAX_VALUE;
 
     //indication of the amount of frames per match, edited in getmatchdetails
     public int frames = 138570;
-	public boolean speed = false;
+    public boolean speed = false;
     //first and second half, amount of frames is stored in here
     public int[] sections = new int[2];
     // Array of Robots currently registered in this game, 25, 22 players 3 referees
@@ -71,450 +74,462 @@ public class GameController implements Drawable, Runnable {
     private int frame = 0;
 
     private GeometryCollection voronoiCells;
+    private boolean computeVoronoiCells = true;  // compute Voronoi cells by default
+
+    public void toggleComputeVoronoiCells() {
+        setComputeVoronoiCells(!this.computeVoronoiCells);
+    }
+
+    public void setComputeVoronoiCells(boolean toggle) {
+        this.computeVoronoiCells = toggle;
+        if (!toggle) {
+            this.voronoiCells = null;
+        }
+    }
 
 
-  /*
-  //########################################################################################################################################### variabeles used to calculate distances in the field and direct opponents ect Roy's research 
-   //posession per frame, team 1 or team 2
-   public int[] ballpossession = new int[frames];
-   //frames where the ball changes team posession
-   public int[] recaptureFrames = new int[frames];
-   
-   //distance from ball to team 1, and team 2
-   public double[][] ballDistanceToTeam = new double[2][frames];
-   
-   //Total distance between 10 players and all their opponents per frame
-   public double[] PlayersTotalDistance = new double[frames];
-   
-   //Total distance between 10 players and their direct opponent per frame
-   public double[] directOpponentDistance = new double[frames];
-   
-   //Direct opponent per frame for 10 players, this is visa versa
-   public int[][] DirectOpponent = new int[10][frames];
-   
-   //sum of the total meters of the individual distances between their direct opponent wich will be minimized 
-   private double smallestSum = 10000000; 
-   
-   //############################################################################################################################################# end of variables used for direct opponents
-   
-   //############################################################################################################################################## functions used to calculate direct opponent
-   
-   
-   //make a matrix of the 10 players with their distance between the opponent team.
-   //m[0][0] = team 1 player 2 to team 2 player 2
-   //m[0][1] = team 1 player 2 to team 2 player 3
-   //m[1][2] = team 1 player 3 to team 2 player 4
-   //ect
-   //keepers are not in this matrix
-   private double[][] makeDistanceMatrix(int frame) {
-   double[][] distanceMatrix = new double[10][10];
-   for (int i = 1; i < 11; i++) {
-   for (int j = 12; j < 22; j++) { 
-   double distance = calculateDistance(playersPos[i][frame], playersPos[j][frame]);
-   distanceMatrix[i-1][j-12] = distance;
-   PlayersTotalDistance[frame] = PlayersTotalDistance[frame] + distance;
-   }
-   }
-   return distanceMatrix;
-   }
-   
-   //make a copy of a 2d double array
-   private double[][] copy2dArray(double[][] m) {
-   double m2[][] = new double[10][10];
-   for (int i = 0; i < 10; i++) {
-   for (int j = 0; j < 10; j++) {
-   m2[i][j] = m[i][j];
-   }
-   }
-   return m2;
-   }
-   
-   //Assign a player to an direct opponent
-   private double assignPlayers(double m[][], int row, int colum) {
-   double g = m[row][colum];
-   for (int i = 0; i < 10; i++) {
-   m[row][i] = -1;
-   m[i][colum] = -1;
-   }
-   return g;
-   }
-   
-   private double minimumDistance(double m[][], int player) {
-   double sum2 = 0;
-   for (int player1 = player; player<10; player++) {
-   double smallest = 1000000;
-   for (int opponent = 0; opponent<10; opponent++) {
-   if (m[player][opponent]!=-1 && smallest > m[player][opponent]) {
-   smallest = m[player][opponent];
-   }
-   }
-   sum2 += smallest;
-   }
-   return sum2;
-   }
-   
-   //calculates the minimum of the individual distance between the players and their direct opponent given an distance matrix m, 
-   //recursive, so try to assign player 1 till 10, and check wich is best
-   //opponents is the opponents in these particular assigns
-   //frame = framenumer of the distance matrix
-   private void minimumsum(double m[][], int player, double sum, int opponents[], int frame) {
-   if (smallestSum < sum + minimumDistance(m, player+1)) { //backtracking
-   return;
-   }
-   if (player == 9) { //stopvoorwaarde
-   if (smallestSum > sum) {
-   smallestSum = sum;
-   for (int p = 0; p<10; p++) {
-   DirectOpponent[p][frame] = opponents[p];
-   }
-   }
-   } else {
-   player++;
-   for (int opponent = 0; opponent < 10; opponent++) {
-   if (m[player][opponent]!=-1) {
-   double m2[][] = copy2dArray(m);
-   double meters = assignPlayers(m2, player, opponent);
-   opponents[player] = opponent;
-   minimumsum(m2, player, sum+meters, opponents, frame);
-   }
-   }
-   }
-   }
-   
-   //print the distance matrix
-   private void matrixPrint(double m[][]) {
-   for (int i = 0; i < 10; i++) {
-   for (int j = 0; j < 10; j++) {
-   System.out.print(m[i][j]+" ");
-   }
-   }
-   }
-   
-   //write distance matrix to file per frame so they can be analyzed.
-   private void writeDistanceToFile(double m[][], int frame) {
-   try {
-   File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceMatrix.txt");
-   // if file doesnt exists, then create it
-   if (!file.exists()) {
-   file.createNewFile();
-   }
-   
-   FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-   BufferedWriter bw = new BufferedWriter(fw);
-   
-   String content = ""+frame+"\n";
-   for (int i = 0; i < 10; i++) {
-   for (int j = 0; j < 10; j++) {
-   content += ""+m[i][j];
-   content += " ";
-   }
-   content += "\n";
-   }
-   content += "\n";
-   bw.write(content);
-   bw.close();
-   } 
-   catch (IOException e) {
-   e.printStackTrace();
-   }
-   }
-   
-   //write opponents to file so it can be memorized and you do not have to calculate it again
-   //framenumer
-   //player=opponent1
-   //player2=opponent2
-   //................
-   //player10=opponent10
-   private void writeOpponentsToFile(int frame) {
-   try {
-   File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaOpponents.txt");
-   // if file doesnt exists, then create it
-   if (!file.exists()) {
-   file.createNewFile();
-   }
-   
-   FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-   BufferedWriter bw = new BufferedWriter(fw);
-   
-   String content = ""+frame+"\n";
-   for (int p = 0; p < 10; p++) {
-   content += ""+(p)+"="+(DirectOpponent[p][frame])+"\n";
-   }
-   content += "\n";
-   bw.write(content);
-   bw.close();
-   } 
-   catch (IOException e) {
-   e.printStackTrace();
-   }
-   }
-   
-   //write minimumsum of the direct opponents per frame to file
-   private void writeMetersToFile(double meters, int frame) {
-   try {
-   File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceFrames.txt");
-   
-   // if file doesnt exists, then create it
-   if (!file.exists()) {
-   file.createNewFile();
-   }
-   
-   FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-   BufferedWriter bw = new BufferedWriter(fw);
-   String content = "";
-   content += ""+frame+" "+meters +" "+PlayersTotalDistance[frame]+"\n"; 
-   bw.write(content);
-   bw.close();
-   } 
-   catch (IOException e) {
-   e.printStackTrace();
-   }
-   }
-   
-   //set individual total distance to the opponents, and total distance, this calculations takes a lot of time!
-   //started 12:36
-   public void setIndividualDistance() {
-   for (int frame = 0; frame < frames; frame++) {
-   if (frame%100==0)
-   System.out.println("distance matrix " + frame);
-   smallestSum = 10000000;
-   double distanceMatrix[][] = makeDistanceMatrix(frame);
-   //matrixPrint(distanceMatrix);
-   writeDistanceToFile(distanceMatrix, frame);
-   int[] opponents = new int[10];
-   minimumsum(distanceMatrix, -1, 0, opponents, frame);
-   writeOpponentsToFile(frame);
-   directOpponentDistance[frame] = smallestSum;
-   writeMetersToFile(smallestSum, frame);
-   }
-   }
-   
-   //public double[][] ballDistanceToTeam = new int[2][frames];
-   public void setBallTeamDistance(){
-   for(int frame = 0; frame<frames; frame++){
-   ballDistanceToTeam[0][frame] = 0;
-   ballDistanceToTeam[1][frame] = 0;
-   for(int player = 0; player<22; player++){
-   int team = player / 11; 
-   ballDistanceToTeam[team][frame] += calculateDistance(playersPos[player][frame], ballpositions[frame]);
-   }
-   }
-   }
-   
-   //when is the ball recaptured. and wirte it to a file.
-   public void getballPossessionSwitch() {
-   int recaptures = 0;
-   for (int frame = 1; frame < frames; frame++) {
-   if (ballpossession[frame] != ballpossession[frame-1]) {
-   recaptureFrames[recaptures] = frame;
-   recaptures++;
-   }
-   }
-   writeRecaptureFramesToFile(recaptures);
-   }
-   
-   //use previous calculated direct opponents which can be read from file which looks like this:
-   //framenumer
-   //player=opponent1
-   //player2=opponent2
-   //................
-   //player10=opponent10
-   public void setDirectOpponent() {
-   System.out.println("setDirectOpponent");
-   try {
-   InputStream fis = new FileInputStream("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaOpponents.txt");
-   InputStreamReader isr = new InputStreamReader(fis);
-   BufferedReader reader = new BufferedReader(isr);
-   String line;
-   for (int frame = 0; frame < frames; frame++) {
-   line = reader.readLine();
-   frame = Integer.parseInt(line);
-   //System.out.println(frame);
-   for (int player = 0; player < 10; player++) {
-   line = reader.readLine();
-   String[] s = line.split("=");
-   DirectOpponent[Integer.parseInt(s[0])][frame] = Integer.parseInt(s[1]); // zodat de eerste twee plaatsen in de array items ook gebruikt worden
-   //System.out.println(Integer.parseInt(s[0])+"="+DirectOpponent[Integer.parseInt(s[0])][frame]);
-   }
-   line = reader.readLine();
-   }
-   }
-   catch (Exception e) {
-   e.printStackTrace();
-   }
-   }
-   
-   //write recapture frames to file so you dont have to calculate it again and it can be reused
-   private void writeRecaptureFramesToFile(int recaptures) {
-   try {
-   File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaRecaptureFrames.txt");
-   
-   // if file doesnt exists, then create it
-   if (!file.exists()) {
-   file.createNewFile();
-   }
-   
-   FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-   BufferedWriter bw = new BufferedWriter(fw);
-   
-   String content = "";
-   for (int i = 0; i < recaptures; i++) {
-   int frame = recaptureFrames[i];
-   content += ""+frame+" "; 
-   double meters = directOpponentDistance[frame];
-   content += ""+meters+" ";
-   meters = PlayersTotalDistance[frame];
-   content += ""+meters +"\n";
-   }
-   bw.write(content);
-   bw.close();
-   } 
-   catch (IOException e) {
-   e.printStackTrace();
-   }
-   }
-   
-   public void getOpponents() {
-   System.out.println("Get opponents from DB");
-   try {
-   con = SoccerSimulator.getConnection();
-   stmt = con.createStatement();
-   for (int section = 0; section<sections.length; section++) {
-   String sql = "SELECT player_id as player1, opponent_player_id as player2, frame_id "+
-   "FROM players_opponents";
-   ResultSet rs = stmt.executeQuery(sql);
-   
-   while (rs.next ()) {
-   int player = rs.getInt("player1")-2;
-   int player2 = rs.getInt("player2")-13;
-   int frame = rs.getInt("frame_id")-1;
-   
-   DirectOpponent[player][frame] = player2;
-   }
-   rs.close();
-   }
-   stmt.close();
-   con.close();
-   }
-   catch (SQLException err) {
-   System.out.println( err.getMessage());
-   }
-   }
-   
-   //insert opponents in the database
-   public void insertOpponentsInDatabase() {
-   System.out.println("Insert players into db");
-   try {
-   con = SoccerSimulator.getConnection();
-   stmt = con.createStatement();
-   
-   for (int frame = 0; frame<frames; frame++) {
-   for (int player = 0; player < 10; player++) {
-   String sql = "INSERT INTO players_opponents "+
-   "VALUES("+(player+2)+","+(DirectOpponent[player][frame]+13)+","+(frame+1)+")";
-   stmt.executeUpdate(sql);
-   }
-   }
-   stmt.close();
-   con.close();
-   }
-   catch (SQLException err) {
-   System.out.println( err.getMessage());
-   }
-   }
-   
-   public void readDistanceFromFile() {
-   System.out.println("setDistance");
-   try {
-   InputStream fis = new FileInputStream("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceFrames.txt");
-   InputStreamReader isr = new InputStreamReader(fis);
-   BufferedReader reader = new BufferedReader(isr);
-   String line;
-   for (int frame = 0; frame < frames; frame++) {
-   line = reader.readLine();
-   String[] s = line.split(" ");
-   frame = Integer.parseInt(s[0]);
-   directOpponentDistance[frame] = Double.parseDouble(s[1]);
-   PlayersTotalDistance[frame] = Double.parseDouble(s[2]);
-   }
-   }
-   catch (Exception e) {
-   e.printStackTrace();
-   }
-   }
-   
-   //insert players_distances into database 
-   public void insertPressureMeasurements() {
-   readDistanceFromFile();
-   System.out.println("Insert distances into db");
-   try {
-   con = SoccerSimulator.getConnection();
-   stmt = con.createStatement();
-   
-   for (int frame = 0; frame<frames; frame++) {
-   String sql = "INSERT INTO pressure_measurements "+
-   "VALUES("+(frame+1)+","+directOpponentDistance[frame]+","+PlayersTotalDistance[frame]+","+ballDistanceToTeam[0][frame]+","+ballDistanceToTeam[1][frame]+")";
-   //System.out.println(sql);                
-   stmt.executeUpdate(sql);
-   }
-   stmt.close();
-   con.close();
-   }
-   catch (SQLException err) {
-   System.out.println( err.getMessage());
-   }
-   }
-   
-   //get the pressure measurements woohoooee
-   public void getPressureMeasurements() {
-   System.out.println("getPressureMeasurements from DB");
-   try {
-   con = SoccerSimulator.getConnection();
-   stmt = con.createStatement();
-   String sql = "SELECT frame_id as frame, direct_opponent_distance as direct, "+
-   "total_opponents_distance as total, ball_team1_distance as bal1, ball_team2_distance as bal2 "+
-   "FROM pressure_measurements";
-   ResultSet rs = stmt.executeQuery(sql);
-   
-   while (rs.next ()) {
-   int frame = rs.getInt("frame")-1;
-   directOpponentDistance[frame] = rs.getDouble("direct");
-   PlayersTotalDistance[frame] = rs.getDouble("total");
-   ballDistanceToTeam[0][frame] = rs.getDouble("bal1");
-   ballDistanceToTeam[1][frame] = rs.getDouble("bal2");
-   }
-   rs.close();
-   stmt.close();
-   con.close();
-   }
-   catch (SQLException err) {
-   System.out.println( err.getMessage());
-   }
-   }
-   
-   //draw line between the direct opponents.
-   private void drawline(PApplet canvas, float scale){
-   canvas.translate(simulatorPos.x, simulatorPos.y);
-   for (int player = 0; player < 10; player++) {
-   int player2 = DirectOpponent[player][frame];
-   
-   PVector player1location = playersPos[player+1][frame];//keeper heeft geen tegenstander, keeper = 0;
-   PVector player2location = playersPos[player2+12][frame];//keeper en eerste team overslaan
-   
-   float x1 = player1location.x*scale;
-   float y1 = player1location.y*scale;
-   float x2 = player2location.x*scale;
-   float y2 = player2location.y*scale;
-   if (!redcard(player1location, player2location)) {
-   canvas.line(x1, y1, x2, y2);
-   }
-   }
-   canvas.translate(-simulatorPos.x, -simulatorPos.y);
-   }
-   
-   
-   //############################################################################################################################################## end of calculation functions for the direct opponent
-   */
+    /*
+    //########################################################################################################################################### variabeles used to calculate distances in the field and direct opponents ect Roy's research
+     //posession per frame, team 1 or team 2
+     public int[] ballpossession = new int[frames];
+     //frames where the ball changes team posession
+     public int[] recaptureFrames = new int[frames];
+
+     //distance from ball to team 1, and team 2
+     public double[][] ballDistanceToTeam = new double[2][frames];
+
+     //Total distance between 10 players and all their opponents per frame
+     public double[] PlayersTotalDistance = new double[frames];
+
+     //Total distance between 10 players and their direct opponent per frame
+     public double[] directOpponentDistance = new double[frames];
+
+     //Direct opponent per frame for 10 players, this is visa versa
+     public int[][] DirectOpponent = new int[10][frames];
+
+     //sum of the total meters of the individual distances between their direct opponent wich will be minimized
+     private double smallestSum = 10000000;
+
+     //############################################################################################################################################# end of variables used for direct opponents
+
+     //############################################################################################################################################## functions used to calculate direct opponent
+
+
+     //make a matrix of the 10 players with their distance between the opponent team.
+     //m[0][0] = team 1 player 2 to team 2 player 2
+     //m[0][1] = team 1 player 2 to team 2 player 3
+     //m[1][2] = team 1 player 3 to team 2 player 4
+     //ect
+     //keepers are not in this matrix
+     private double[][] makeDistanceMatrix(int frame) {
+     double[][] distanceMatrix = new double[10][10];
+     for (int i = 1; i < 11; i++) {
+     for (int j = 12; j < 22; j++) {
+     double distance = calculateDistance(playersPos[i][frame], playersPos[j][frame]);
+     distanceMatrix[i-1][j-12] = distance;
+     PlayersTotalDistance[frame] = PlayersTotalDistance[frame] + distance;
+     }
+     }
+     return distanceMatrix;
+     }
+
+     //make a copy of a 2d double array
+     private double[][] copy2dArray(double[][] m) {
+     double m2[][] = new double[10][10];
+     for (int i = 0; i < 10; i++) {
+     for (int j = 0; j < 10; j++) {
+     m2[i][j] = m[i][j];
+     }
+     }
+     return m2;
+     }
+
+     //Assign a player to an direct opponent
+     private double assignPlayers(double m[][], int row, int colum) {
+     double g = m[row][colum];
+     for (int i = 0; i < 10; i++) {
+     m[row][i] = -1;
+     m[i][colum] = -1;
+     }
+     return g;
+     }
+
+     private double minimumDistance(double m[][], int player) {
+     double sum2 = 0;
+     for (int player1 = player; player<10; player++) {
+     double smallest = 1000000;
+     for (int opponent = 0; opponent<10; opponent++) {
+     if (m[player][opponent]!=-1 && smallest > m[player][opponent]) {
+     smallest = m[player][opponent];
+     }
+     }
+     sum2 += smallest;
+     }
+     return sum2;
+     }
+
+     //calculates the minimum of the individual distance between the players and their direct opponent given an distance matrix m,
+     //recursive, so try to assign player 1 till 10, and check wich is best
+     //opponents is the opponents in these particular assigns
+     //frame = framenumer of the distance matrix
+     private void minimumsum(double m[][], int player, double sum, int opponents[], int frame) {
+     if (smallestSum < sum + minimumDistance(m, player+1)) { //backtracking
+     return;
+     }
+     if (player == 9) { //stopvoorwaarde
+     if (smallestSum > sum) {
+     smallestSum = sum;
+     for (int p = 0; p<10; p++) {
+     DirectOpponent[p][frame] = opponents[p];
+     }
+     }
+     } else {
+     player++;
+     for (int opponent = 0; opponent < 10; opponent++) {
+     if (m[player][opponent]!=-1) {
+     double m2[][] = copy2dArray(m);
+     double meters = assignPlayers(m2, player, opponent);
+     opponents[player] = opponent;
+     minimumsum(m2, player, sum+meters, opponents, frame);
+     }
+     }
+     }
+     }
+
+     //print the distance matrix
+     private void matrixPrint(double m[][]) {
+     for (int i = 0; i < 10; i++) {
+     for (int j = 0; j < 10; j++) {
+     System.out.print(m[i][j]+" ");
+     }
+     }
+     }
+
+     //write distance matrix to file per frame so they can be analyzed.
+     private void writeDistanceToFile(double m[][], int frame) {
+     try {
+     File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceMatrix.txt");
+     // if file doesnt exists, then create it
+     if (!file.exists()) {
+     file.createNewFile();
+     }
+
+     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+     BufferedWriter bw = new BufferedWriter(fw);
+
+     String content = ""+frame+"\n";
+     for (int i = 0; i < 10; i++) {
+     for (int j = 0; j < 10; j++) {
+     content += ""+m[i][j];
+     content += " ";
+     }
+     content += "\n";
+     }
+     content += "\n";
+     bw.write(content);
+     bw.close();
+     }
+     catch (IOException e) {
+     e.printStackTrace();
+     }
+     }
+
+     //write opponents to file so it can be memorized and you do not have to calculate it again
+     //framenumer
+     //player=opponent1
+     //player2=opponent2
+     //................
+     //player10=opponent10
+     private void writeOpponentsToFile(int frame) {
+     try {
+     File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaOpponents.txt");
+     // if file doesnt exists, then create it
+     if (!file.exists()) {
+     file.createNewFile();
+     }
+
+     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+     BufferedWriter bw = new BufferedWriter(fw);
+
+     String content = ""+frame+"\n";
+     for (int p = 0; p < 10; p++) {
+     content += ""+(p)+"="+(DirectOpponent[p][frame])+"\n";
+     }
+     content += "\n";
+     bw.write(content);
+     bw.close();
+     }
+     catch (IOException e) {
+     e.printStackTrace();
+     }
+     }
+
+     //write minimumsum of the direct opponents per frame to file
+     private void writeMetersToFile(double meters, int frame) {
+     try {
+     File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceFrames.txt");
+
+     // if file doesnt exists, then create it
+     if (!file.exists()) {
+     file.createNewFile();
+     }
+
+     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+     BufferedWriter bw = new BufferedWriter(fw);
+     String content = "";
+     content += ""+frame+" "+meters +" "+PlayersTotalDistance[frame]+"\n";
+     bw.write(content);
+     bw.close();
+     }
+     catch (IOException e) {
+     e.printStackTrace();
+     }
+     }
+
+     //set individual total distance to the opponents, and total distance, this calculations takes a lot of time!
+     //started 12:36
+     public void setIndividualDistance() {
+     for (int frame = 0; frame < frames; frame++) {
+     if (frame%100==0)
+     System.out.println("distance matrix " + frame);
+     smallestSum = 10000000;
+     double distanceMatrix[][] = makeDistanceMatrix(frame);
+     //matrixPrint(distanceMatrix);
+     writeDistanceToFile(distanceMatrix, frame);
+     int[] opponents = new int[10];
+     minimumsum(distanceMatrix, -1, 0, opponents, frame);
+     writeOpponentsToFile(frame);
+     directOpponentDistance[frame] = smallestSum;
+     writeMetersToFile(smallestSum, frame);
+     }
+     }
+
+     //public double[][] ballDistanceToTeam = new int[2][frames];
+     public void setBallTeamDistance(){
+     for(int frame = 0; frame<frames; frame++){
+     ballDistanceToTeam[0][frame] = 0;
+     ballDistanceToTeam[1][frame] = 0;
+     for(int player = 0; player<22; player++){
+     int team = player / 11;
+     ballDistanceToTeam[team][frame] += calculateDistance(playersPos[player][frame], ballpositions[frame]);
+     }
+     }
+     }
+
+     //when is the ball recaptured. and wirte it to a file.
+     public void getballPossessionSwitch() {
+     int recaptures = 0;
+     for (int frame = 1; frame < frames; frame++) {
+     if (ballpossession[frame] != ballpossession[frame-1]) {
+     recaptureFrames[recaptures] = frame;
+     recaptures++;
+     }
+     }
+     writeRecaptureFramesToFile(recaptures);
+     }
+
+     //use previous calculated direct opponents which can be read from file which looks like this:
+     //framenumer
+     //player=opponent1
+     //player2=opponent2
+     //................
+     //player10=opponent10
+     public void setDirectOpponent() {
+     System.out.println("setDirectOpponent");
+     try {
+     InputStream fis = new FileInputStream("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaOpponents.txt");
+     InputStreamReader isr = new InputStreamReader(fis);
+     BufferedReader reader = new BufferedReader(isr);
+     String line;
+     for (int frame = 0; frame < frames; frame++) {
+     line = reader.readLine();
+     frame = Integer.parseInt(line);
+     //System.out.println(frame);
+     for (int player = 0; player < 10; player++) {
+     line = reader.readLine();
+     String[] s = line.split("=");
+     DirectOpponent[Integer.parseInt(s[0])][frame] = Integer.parseInt(s[1]); // zodat de eerste twee plaatsen in de array items ook gebruikt worden
+     //System.out.println(Integer.parseInt(s[0])+"="+DirectOpponent[Integer.parseInt(s[0])][frame]);
+     }
+     line = reader.readLine();
+     }
+     }
+     catch (Exception e) {
+     e.printStackTrace();
+     }
+     }
+
+     //write recapture frames to file so you dont have to calculate it again and it can be reused
+     private void writeRecaptureFramesToFile(int recaptures) {
+     try {
+     File file = new File("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaRecaptureFrames.txt");
+
+     // if file doesnt exists, then create it
+     if (!file.exists()) {
+     file.createNewFile();
+     }
+
+     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+     BufferedWriter bw = new BufferedWriter(fw);
+
+     String content = "";
+     for (int i = 0; i < recaptures; i++) {
+     int frame = recaptureFrames[i];
+     content += ""+frame+" ";
+     double meters = directOpponentDistance[frame];
+     content += ""+meters+" ";
+     meters = PlayersTotalDistance[frame];
+     content += ""+meters +"\n";
+     }
+     bw.write(content);
+     bw.close();
+     }
+     catch (IOException e) {
+     e.printStackTrace();
+     }
+     }
+
+     public void getOpponents() {
+     System.out.println("Get opponents from DB");
+     try {
+     con = SoccerSimulator.getConnection();
+     stmt = con.createStatement();
+     for (int section = 0; section<sections.length; section++) {
+     String sql = "SELECT player_id as player1, opponent_player_id as player2, frame_id "+
+     "FROM players_opponents";
+     ResultSet rs = stmt.executeQuery(sql);
+
+     while (rs.next ()) {
+     int player = rs.getInt("player1")-2;
+     int player2 = rs.getInt("player2")-13;
+     int frame = rs.getInt("frame_id")-1;
+
+     DirectOpponent[player][frame] = player2;
+     }
+     rs.close();
+     }
+     stmt.close();
+     con.close();
+     }
+     catch (SQLException err) {
+     System.out.println( err.getMessage());
+     }
+     }
+
+     //insert opponents in the database
+     public void insertOpponentsInDatabase() {
+     System.out.println("Insert players into db");
+     try {
+     con = SoccerSimulator.getConnection();
+     stmt = con.createStatement();
+
+     for (int frame = 0; frame<frames; frame++) {
+     for (int player = 0; player < 10; player++) {
+     String sql = "INSERT INTO players_opponents "+
+     "VALUES("+(player+2)+","+(DirectOpponent[player][frame]+13)+","+(frame+1)+")";
+     stmt.executeUpdate(sql);
+     }
+     }
+     stmt.close();
+     con.close();
+     }
+     catch (SQLException err) {
+     System.out.println( err.getMessage());
+     }
+     }
+
+     public void readDistanceFromFile() {
+     System.out.println("setDistance");
+     try {
+     InputStream fis = new FileInputStream("C:/Users/Roy de Winter/Documents/uni/I en E/bep/JavaDistanceFrames.txt");
+     InputStreamReader isr = new InputStreamReader(fis);
+     BufferedReader reader = new BufferedReader(isr);
+     String line;
+     for (int frame = 0; frame < frames; frame++) {
+     line = reader.readLine();
+     String[] s = line.split(" ");
+     frame = Integer.parseInt(s[0]);
+     directOpponentDistance[frame] = Double.parseDouble(s[1]);
+     PlayersTotalDistance[frame] = Double.parseDouble(s[2]);
+     }
+     }
+     catch (Exception e) {
+     e.printStackTrace();
+     }
+     }
+
+     //insert players_distances into database
+     public void insertPressureMeasurements() {
+     readDistanceFromFile();
+     System.out.println("Insert distances into db");
+     try {
+     con = SoccerSimulator.getConnection();
+     stmt = con.createStatement();
+
+     for (int frame = 0; frame<frames; frame++) {
+     String sql = "INSERT INTO pressure_measurements "+
+     "VALUES("+(frame+1)+","+directOpponentDistance[frame]+","+PlayersTotalDistance[frame]+","+ballDistanceToTeam[0][frame]+","+ballDistanceToTeam[1][frame]+")";
+     //System.out.println(sql);
+     stmt.executeUpdate(sql);
+     }
+     stmt.close();
+     con.close();
+     }
+     catch (SQLException err) {
+     System.out.println( err.getMessage());
+     }
+     }
+
+     //get the pressure measurements woohoooee
+     public void getPressureMeasurements() {
+     System.out.println("getPressureMeasurements from DB");
+     try {
+     con = SoccerSimulator.getConnection();
+     stmt = con.createStatement();
+     String sql = "SELECT frame_id as frame, direct_opponent_distance as direct, "+
+     "total_opponents_distance as total, ball_team1_distance as bal1, ball_team2_distance as bal2 "+
+     "FROM pressure_measurements";
+     ResultSet rs = stmt.executeQuery(sql);
+
+     while (rs.next ()) {
+     int frame = rs.getInt("frame")-1;
+     directOpponentDistance[frame] = rs.getDouble("direct");
+     PlayersTotalDistance[frame] = rs.getDouble("total");
+     ballDistanceToTeam[0][frame] = rs.getDouble("bal1");
+     ballDistanceToTeam[1][frame] = rs.getDouble("bal2");
+     }
+     rs.close();
+     stmt.close();
+     con.close();
+     }
+     catch (SQLException err) {
+     System.out.println( err.getMessage());
+     }
+     }
+
+     //draw line between the direct opponents.
+     private void drawline(PApplet canvas, float scale){
+     canvas.translate(simulatorPos.x, simulatorPos.y);
+     for (int player = 0; player < 10; player++) {
+     int player2 = DirectOpponent[player][frame];
+
+     PVector player1location = playersPos[player+1][frame];//keeper heeft geen tegenstander, keeper = 0;
+     PVector player2location = playersPos[player2+12][frame];//keeper en eerste team overslaan
+
+     float x1 = player1location.x*scale;
+     float y1 = player1location.y*scale;
+     float x2 = player2location.x*scale;
+     float y2 = player2location.y*scale;
+     if (!redcard(player1location, player2location)) {
+     canvas.line(x1, y1, x2, y2);
+     }
+     }
+     canvas.translate(-simulatorPos.x, -simulatorPos.y);
+     }
+
+
+     //############################################################################################################################################## end of calculation functions for the direct opponent
+     */
     //total time past 45 minutes so 2nd half will start at 45:00
     private float till45min = 0;
     private boolean lastside = true;
@@ -665,8 +680,8 @@ public class GameController implements Drawable, Runnable {
     public void getMatchDetails() throws IllegalAccessException, InstantiationException, ClassNotFoundException {
         System.out.println("match details");
         try {
-			con = SoccerSimulator.getConnection();
-			
+            con = SoccerSimulator.getConnection();
+
             stmt = con.createStatement();
             String sql = "select max(frame_number) as framess, frames.section from frames group by frames.section;";
             ResultSet rs = stmt.executeQuery(sql);
@@ -847,17 +862,19 @@ public class GameController implements Drawable, Runnable {
             setRefsState(frame);
             simulator.ball.setPosition(ballpositions[frame]);
 
-//            voronoiCells = computeVoronoi();
-			
-			//zodat de poppetjes niet te hard lopen en de tijd niet te snel gaat!
-			if(speed){
-				try{
-					Thread.sleep(22);
-				} catch(InterruptedException ex){
-					Thread.currentThread().interrupt();
-				}
-			}
-			
+            if (computeVoronoiCells) {
+                voronoiCells = computeVoronoi();
+            }
+
+            //zodat de poppetjes niet te hard lopen en de tijd niet te snel gaat!
+            if(speed){
+                try{
+                    Thread.sleep(22);
+                } catch(InterruptedException ex){
+                    Thread.currentThread().interrupt();
+                }
+            }
+
             if (frame < frames)
                 frame++;
         }
@@ -870,10 +887,10 @@ public class GameController implements Drawable, Runnable {
             frame = frame + 1500;
         }
     }
-	
-	public void toggleSpeed(){
-		speed = !speed;
-	}
+
+    public void toggleSpeed(){
+        speed = !speed;
+    }
 
     //pres p to go back a minute
     public void PreviousMinute() {
@@ -1098,7 +1115,7 @@ public class GameController implements Drawable, Runnable {
             float y1 = currentPosition.y * scale;
             float x2 = futurePosition.x * scale;
             float y2 = futurePosition.y * scale;
-			if (!redcard(currentPosition, futurePosition)) {
+            if (!redcard(currentPosition, futurePosition)) {
                 //canvas.line(x1, y1, x2, y2);
             }
         }
@@ -1108,22 +1125,47 @@ public class GameController implements Drawable, Runnable {
         //drawline(canvas, scale); //comment this out if you dont load players opponents
 
         /* Draw Voronoi cells */
-        if (voronoiCells != null && false) { // currently disabled
-            canvas.translate(simulatorPos.x, simulatorPos.y);
+        canvas.translate(simulatorPos.x, simulatorPos.y);
+        canvas.blendMode(canvas.LIGHTEST);
+        if (voronoiCells != null) { // currently disabled
             for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
                 Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
-
-                /* NOTE: beginShape() cannot be translated so we get a wrongly scaled Voronoi diagram. */
-                canvas.beginShape();
-                for (Coordinate coordinate : polygon.getCoordinates()) {
-                    canvas.vertex((float) coordinate.x, (float) coordinate.y);
-//            canvas.line((float)edge.x1, (float)edge.x2, (float)edge.y1, (float)edge.y2);
+                for (int j = 0; j < polygon.getCoordinates().length - 1; j++) {
+                    Coordinate c1 = clipCoordinate(polygon.getCoordinates()[j]);
+                    Coordinate c2 = clipCoordinate(polygon.getCoordinates()[j + 1]);
+                    canvas.stroke(255, 30);
+                    canvas.strokeWeight(3);
+                    canvas.line((float) c1.x*scale, (float) c1.y*scale, (float) c2.x*scale, (float) c2.y*scale);
                 }
-                canvas.endShape();
             }
-            canvas.translate(-simulatorPos.x, -simulatorPos.y);
+        }
+        canvas.translate(-simulatorPos.x, -simulatorPos.y);
+        canvas.strokeWeight(1);
+    }
+
+    /**
+     * Returns a copy of the clipped coordinate
+     * @param coordinate
+     * @return
+     */
+    public Coordinate clipCoordinate(Coordinate coordinate) {
+        float MARGIN = 0.4f;
+
+        Coordinate newCoordinate = new Coordinate(coordinate);
+
+        if (coordinate.x < 0f) {
+            newCoordinate.x = 0f + MARGIN;
+        } else if (coordinate.x > 105f) {
+            newCoordinate.x = 105f - MARGIN;
         }
 
+        if (coordinate.y < 0f) {
+            newCoordinate.y = 0f + MARGIN;
+        } else if (coordinate.y > 68f) {
+            newCoordinate.y = 68f - MARGIN;
+        }
+
+        return newCoordinate;
     }
 
     /*

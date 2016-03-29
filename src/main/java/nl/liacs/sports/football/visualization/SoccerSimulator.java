@@ -171,6 +171,9 @@ public class SoccerSimulator extends PApplet {
         } else if (key == 'p') {
             System.out.println("go back 1 minute");
             controller.PreviousMinute();
-        } 
+        } else if (key == 'v') {
+            System.out.println("Toggle Voronoi Cells");
+            controller.toggleComputeVoronoiCells();
+        }
     }
 }
