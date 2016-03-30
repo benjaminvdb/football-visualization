@@ -95,7 +95,7 @@
         <dependency>
             <groupId>org.geotools</groupId>
             <artifactId>gt-geometry</artifactId>
-            <version>14.3</version>
+            <version>15-beta</version>
         </dependency>
     </dependencies>
 

@@ -7,7 +7,9 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineSegment;
+import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.geom.impl.CoordinateArraySequence;
 import com.vividsolutions.jts.operation.predicate.RectangleIntersects;
 import com.vividsolutions.jts.triangulate.VoronoiDiagramBuilder;
 
@@ -844,7 +846,13 @@ public class GameController implements Drawable, Runnable {
         /* Clip the Voronoi cells. */
         Geometry[] newGeometries = new Geometry[geometries.getNumGeometries()];
         for (int i = 0; i < geometries.getNumGeometries(); i++) {
-            newGeometries[i] = gc.clip(geometries.getGeometryN(i), true);
+            Geometry geometry = gc.clipSafe(geometries.getGeometryN(i), false, 0);
+            if (geometry == null) {
+                log.warn("geometry clipper returned null, skipped frame");
+                return new GeometryCollection(new Geometry[0], new GeometryFactory());
+            } else {
+                newGeometries[i] = geometry;
+            }
         }
 
         return new GeometryCollection(newGeometries, new GeometryFactory());
