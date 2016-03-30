@@ -1,11 +1,5 @@
 package nl.liacs.sports.football.visualization;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-
 import processing.core.PApplet;
 
 

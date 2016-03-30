@@ -1,16 +1,11 @@
 package nl.liacs.sports.football.visualization;
 
-import com.vividsolutions.jts.algorithm.RectangleLineIntersector;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LineSegment;
-import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
-import com.vividsolutions.jts.geom.impl.CoordinateArraySequence;
-import com.vividsolutions.jts.operation.predicate.RectangleIntersects;
 import com.vividsolutions.jts.triangulate.VoronoiDiagramBuilder;
 
 import org.geotools.geometry.jts.GeometryClipper;
@@ -22,10 +17,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import processing.core.PApplet;
 import processing.core.PVector;
