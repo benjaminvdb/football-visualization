@@ -1,13 +1,17 @@
 package nl.liacs.sports.football.visualization;
 
+import com.vividsolutions.jts.algorithm.RectangleLineIntersector;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LineSegment;
 import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.operation.predicate.RectangleIntersects;
 import com.vividsolutions.jts.triangulate.VoronoiDiagramBuilder;
 
+import org.geotools.geometry.jts.GeometryClipper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +30,7 @@ import processing.core.PVector;
 
 public class GameController implements Drawable, Runnable {
 
-    private static final Logger log = LoggerFactory.getLogger(SoccerSimulator.class);
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
 
     private final static long LIMIT = Long.MAX_VALUE; //100000; //Long.MAX_VALUE;
 
@@ -817,27 +821,33 @@ public class GameController implements Drawable, Runnable {
     }
 
     public GeometryCollection computeVoronoi() {
+        /* VoronoiDiagramBuilder expects a list of site coordinates. */
         List<Coordinate> coordinates = new ArrayList<>();
         for (int i = 0; i < playersPos.length; i++) {
             double x = (double) playersPos[i][frame].x;
             double y = (double) playersPos[i][frame].y;
-
             coordinates.add(new Coordinate(x, y));
         }
 
+        /* Compute unclipped Voronoi cells. */
         VoronoiDiagramBuilder vdbuilder = new VoronoiDiagramBuilder();
-        vdbuilder.setClipEnvelope(new Envelope(0, 105, 0, 68));
         vdbuilder.setSites(coordinates);
-        GeometryFactory gf = new GeometryFactory();
-        GeometryCollection gc = (GeometryCollection)vdbuilder.getDiagram(new GeometryFactory());
+        GeometryCollection geometries = (GeometryCollection)vdbuilder.getDiagram(new GeometryFactory());
 
-//        System.out.println("Printing Voronoi cells new style!! Size is " + gc.getNumGeometries());
-        for (int i = 0; i < gc.getNumGeometries(); i++) {
-            Polygon polygon = (Polygon)gc.getGeometryN(i);
-//            System.out.println(polygon.toString());
+        /* Construct a clipper. */
+        float margin = 0.4f;
+        Coordinate lowerleft = new Coordinate(margin, margin);
+        Coordinate upperright = new Coordinate(105 - margin, 68 - margin);
+        Envelope envelope = new Envelope(lowerleft, upperright);
+        GeometryClipper gc = new GeometryClipper(envelope);
+
+        /* Clip the Voronoi cells. */
+        Geometry[] newGeometries = new Geometry[geometries.getNumGeometries()];
+        for (int i = 0; i < geometries.getNumGeometries(); i++) {
+            newGeometries[i] = gc.clip(geometries.getGeometryN(i), true);
         }
 
-        return gc;
+        return new GeometryCollection(newGeometries, new GeometryFactory());
     }
 
     //#######################################################################WORDT CONTINUE UITGEVOERD##########################
@@ -1126,14 +1136,14 @@ public class GameController implements Drawable, Runnable {
 
         /* Draw Voronoi cells */
         canvas.translate(simulatorPos.x, simulatorPos.y);
-        canvas.blendMode(canvas.LIGHTEST);
-        if (voronoiCells != null) { // currently disabled
+        if (voronoiCells != null) {
             for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
                 Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
                 for (int j = 0; j < polygon.getCoordinates().length - 1; j++) {
-                    Coordinate c1 = clipCoordinate(polygon.getCoordinates()[j]);
-                    Coordinate c2 = clipCoordinate(polygon.getCoordinates()[j + 1]);
-                    canvas.stroke(255, 30);
+                    Coordinate c1 = polygon.getCoordinates()[j];
+                    Coordinate c2 = polygon.getCoordinates()[j + 1];
+                    canvas.stroke(255f, 153f, 44f, 100f);
+//                    canvas.stroke(255, 30);
                     canvas.strokeWeight(3);
                     canvas.line((float) c1.x*scale, (float) c1.y*scale, (float) c2.x*scale, (float) c2.y*scale);
                 }
@@ -1141,31 +1151,6 @@ public class GameController implements Drawable, Runnable {
         }
         canvas.translate(-simulatorPos.x, -simulatorPos.y);
         canvas.strokeWeight(1);
-    }
-
-    /**
-     * Returns a copy of the clipped coordinate
-     * @param coordinate
-     * @return
-     */
-    public Coordinate clipCoordinate(Coordinate coordinate) {
-        float MARGIN = 0.4f;
-
-        Coordinate newCoordinate = new Coordinate(coordinate);
-
-        if (coordinate.x < 0f) {
-            newCoordinate.x = 0f + MARGIN;
-        } else if (coordinate.x > 105f) {
-            newCoordinate.x = 105f - MARGIN;
-        }
-
-        if (coordinate.y < 0f) {
-            newCoordinate.y = 0f + MARGIN;
-        } else if (coordinate.y > 68f) {
-            newCoordinate.y = 68f - MARGIN;
-        }
-
-        return newCoordinate;
     }
 
     /*
