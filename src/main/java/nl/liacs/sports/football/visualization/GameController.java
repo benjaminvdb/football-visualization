@@ -5,20 +5,26 @@ import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.triangulate.DelaunayTriangulationBuilder;
 import com.vividsolutions.jts.triangulate.VoronoiDiagramBuilder;
 
+import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.geotools.geometry.jts.GeometryClipper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import processing.core.PApplet;
 import processing.core.PVector;
@@ -35,7 +41,7 @@ public class GameController implements Drawable, Runnable {
     //first and second half, amount of frames is stored in here
     public int[] sections = new int[2];
     // Array of Robots currently registered in this game, 25, 22 players 3 referees
-    public ArrayList<Robot> robots = new ArrayList<Robot>();
+    public List<Robot> robots = new ArrayList<>();
     //position of the ball per frame
     public PVector[] ballpositions = new PVector[frames];
     //possitions of the referees in the field. this is in meters. left upper corner = 0.0 PVectors have an x and y
@@ -53,9 +59,9 @@ public class GameController implements Drawable, Runnable {
     private GameSimulator simulator;
     private Judge judge;
     // Threads of the Robots, mapped to each Robot
-    private HashMap<Robot, Thread> robotThreads = new HashMap<Robot, Thread>();
+    private Map<Robot, Thread> robotThreads = new HashMap<>();
     // Side of the robots, mapped to each Robot
-    private HashMap<Robot, TeamSide> robotSides = new HashMap<Robot, TeamSide>();
+    private Map<Robot, TeamSide> robotSides = new HashMap<>();
     // Match configuration for this Game
     private Match match;
     //Stores Points for both Sides
@@ -72,8 +78,12 @@ public class GameController implements Drawable, Runnable {
     //frame nummer in simulator
     private int frame = 0;
 
+    /* Voronoi cell related stuff */
+    private static final int VORONOI_WINDOW_SIZE = 75;  // the number of frames to average cell scores over
     private GeometryCollection voronoiCells;
     private boolean computeVoronoiCells = true;  // compute Voronoi cells by default
+    private int trackedVoronoiCell = 9;  // turned off by default
+    private BoundedFIFOArray areaFIFO = new BoundedFIFOArray(VORONOI_WINDOW_SIZE);
 
     public void toggleComputeVoronoiCells() {
         setComputeVoronoiCells(!this.computeVoronoiCells);
@@ -81,11 +91,98 @@ public class GameController implements Drawable, Runnable {
 
     public void setComputeVoronoiCells(boolean toggle) {
         this.computeVoronoiCells = toggle;
-        if (!toggle) {
+        if (toggle) {
+            this.areaFIFO = new BoundedFIFOArray(VORONOI_WINDOW_SIZE);
+        } else {
             this.voronoiCells = null;
+            this.areaFIFO = null;
         }
     }
 
+    /**
+     * Register the position of the mouse click and figure out if a Voronoi cell was clicked.
+     * @param mouseX
+     * @param mouseY
+     */
+    public void handleMouseClick(int mouseX, int mouseY) {
+        if (voronoiCells != null) {
+            /* TODO: convert click location to field location. */
+            Point clickLocation = new GeometryFactory().createPoint(new Coordinate(mouseX, mouseY));
+            log.debug("click location is {}", clickLocation);
+            for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
+                Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
+                if (polygon.contains(clickLocation)) {
+//                    log.info("click location within Voronoi cell, start following...");
+//                    trackedVoronoiCell = i;
+                }
+            }
+        }
+    }
+
+    /**
+     * Computes the area of each Voronoi cell or returns an empty array if there are no Voronoi cells available.
+     * @return
+     */
+    public double[] computeVoronoiCellsAreas() {
+        if (voronoiCells != null) {
+            int numCells = voronoiCells.getNumGeometries();
+            double[] areas = new double[numCells];
+            for (int i = 0; i < numCells; i++) {
+                Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
+                areas[i] = polygon.getArea();
+            }
+            log.trace("finished computing area of {} polygons", areas.length);
+            return areas;
+        } else {
+            return new double[0];
+        }
+    }
+
+    /**
+     * Returns a score value in [0, 1] that scores the area of the Voronoi cell with given index.
+     * A low score means a low relative area.
+     * @param index
+     * @return value based on position in sorted array
+     */
+    public double scoreVoronoiCellArea(int index) {
+        if (voronoiCells != null) {
+            double[] areas = computeVoronoiCellsAreas();
+            double val = areas[index];
+            Arrays.sort(areas);
+            int i;
+            for (i = 0; i < areas.length; i++) {
+                if (Double.compare(val, areas[i]) == 0) {
+                    break;
+                }
+            }
+            double ret = (double) i / (double) areas.length;
+            log.trace("area of tracked cell is {}, rank is {}, score is {}", areas[i], i, ret);
+            return ret;
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * Compute color between Colors `c1` and `c2` based on the normalized value `norm` in [0, 1].
+     * @param norm
+     * @param c1
+     * @param c2
+     * @return
+     */
+    public Color computeInBetweenColor(double norm, Color c1, Color c2) {
+        float[] comps1 = new float[4];
+        float[] comps2 = new float[4];
+
+        c1.getRGBComponents(comps1);
+        c2.getRGBComponents(comps2);
+
+        float[] ret = new float[4];
+        for (int i = 0; i < 4; i++) {
+            ret[i] = (float) (norm * (Math.abs(comps1[i] - comps2[i])));
+        }
+        return new Color(ret[0], ret[1], ret[2], ret[3]);
+    }
 
     /*
     //########################################################################################################################################### variabeles used to calculate distances in the field and direct opponents ect Roy's research
@@ -1013,7 +1110,7 @@ public class GameController implements Drawable, Runnable {
         }
 
         // Get center of the field
-        PVector start = simulator.fieldCenter.get();
+        PVector start = simulator.fieldCenter.copy();
 
         float fieldW = getSimulator().getFieldWidth();
         float fieldH = getSimulator().getFieldHeight();
@@ -1117,20 +1214,20 @@ public class GameController implements Drawable, Runnable {
         }
 
         //draw line to future him so you know his direction and speed
-        canvas.translate(simulatorPos.x, simulatorPos.y);
-        for (int player = 0; player < 22; player++) {
-            PVector currentPosition = playersPos[player][frame];
-            PVector futurePosition = playersPos[player][frame + 25]; //position in 1 second will cause cause an nullpointer exception 1 second before the end
-
-            float x1 = currentPosition.x * scale;
-            float y1 = currentPosition.y * scale;
-            float x2 = futurePosition.x * scale;
-            float y2 = futurePosition.y * scale;
-            if (!redcard(currentPosition, futurePosition)) {
-                //canvas.line(x1, y1, x2, y2);
-            }
-        }
-        canvas.translate(-simulatorPos.x, -simulatorPos.y);
+//        canvas.translate(simulatorPos.x, simulatorPos.y);
+//        for (int player = 0; player < 22; player++) {
+//            PVector currentPosition = playersPos[player][frame];
+//            PVector futurePosition = playersPos[player][frame + 25]; //position in 1 second will cause cause an nullpointer exception 1 second before the end
+//
+//            float x1 = currentPosition.x * scale;
+//            float y1 = currentPosition.y * scale;
+//            float x2 = futurePosition.x * scale;
+//            float y2 = futurePosition.y * scale;
+//            if (!redcard(currentPosition, futurePosition)) {
+//                //canvas.line(x1, y1, x2, y2);
+//            }
+//        }
+//        canvas.translate(-simulatorPos.x, -simulatorPos.y);
 
         //draw line between the direct opponents.
         //drawline(canvas, scale); //comment this out if you dont load players opponents
@@ -1141,12 +1238,49 @@ public class GameController implements Drawable, Runnable {
             for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
                 Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
                 for (int j = 0; j < polygon.getCoordinates().length - 1; j++) {
-                    Coordinate c1 = polygon.getCoordinates()[j];
-                    Coordinate c2 = polygon.getCoordinates()[j + 1];
-                    canvas.stroke(255f, 153f, 44f, 100f);
-//                    canvas.stroke(255, 30);
-                    canvas.strokeWeight(3);
-                    canvas.line((float) c1.x*scale, (float) c1.y*scale, (float) c2.x*scale, (float) c2.y*scale);
+
+                    /* Get tracked player coordinate. */
+                    double trackedX, trackedY;
+                    trackedX = playersPos[trackedVoronoiCell][frame].x;// * scale;
+                    trackedY = playersPos[trackedVoronoiCell][frame].y;// * scale;
+                    log.trace("[{}, {}]", trackedX, trackedY);
+                    Point point = new GeometryFactory().createPoint(new Coordinate(trackedX, trackedY));
+
+                    if (polygon.contains(point)) {
+                        double score = scoreVoronoiCellArea(trackedVoronoiCell);
+                        areaFIFO.add(score);
+                        score = new Mean().evaluate(areaFIFO.getElements());
+
+                        float green = (float)(score * 255);
+                        float red = (float)(255 - (score * 255));
+                        canvas.fill(red, green, 0, 60f);
+
+                        canvas.stroke(0f, 0f);
+                        canvas.strokeWeight(0f);
+
+                        DelaunayTriangulationBuilder dtb = new DelaunayTriangulationBuilder();
+                        dtb.setSites(Arrays.asList(polygon.getCoordinates()));
+                        Geometry triangles = dtb.getTriangles(new GeometryFactory());
+
+                        log.trace("polygon has {} triangles and {} coordinates", triangles.getNumGeometries(), triangles.getCoordinates().length);
+
+                        for (int k = 0; k < triangles.getNumGeometries(); k++) {
+                            Polygon triangle = (Polygon) triangles.getGeometryN(k);
+                            log.trace("triangle has {} corners: {}", triangle.getCoordinates().length, triangle.getCoordinates());
+                            Coordinate[] coordinates = triangle.getCoordinates();
+                            /* NOTE: there are four coordinates in a Triangle-type polygon, but the last is the same as first. */
+                            Coordinate c1 = coordinates[0];
+                            Coordinate c2 = coordinates[1];
+                            Coordinate c3 = coordinates[2];
+                            canvas.triangle((float)c1.x*scale, (float)c1.y*scale, (float)c2.x*scale, (float)c2.y*scale, (float)c3.x*scale, (float)c3.y*scale);
+                        }
+                    } else {
+                        Coordinate c1 = polygon.getCoordinates()[j];
+                        Coordinate c2 = polygon.getCoordinates()[j + 1];
+                        canvas.stroke(255f, 153f, 44f, 100f);
+                        canvas.strokeWeight(3);
+                        canvas.line((float) c1.x * scale, (float) c1.y * scale, (float) c2.x * scale, (float) c2.y * scale);
+                    }
                 }
             }
         }
@@ -1157,7 +1291,7 @@ public class GameController implements Drawable, Runnable {
     /*
           Returns robot list
          */
-    public ArrayList<Robot> getRobots() {
+    public List<Robot> getRobots() {
         return robots;
     }
 
@@ -1166,7 +1300,7 @@ public class GameController implements Drawable, Runnable {
          */
     protected void placeRobot(Robot r, PVector position, float orientation) {
         simulator.addToSimulation(r);
-        r.setState(position.get(), 0);
+        r.setState(position.copy(), 0);
         judge.onRobotPlaced(r);
         r.onStateChanged("PLACED");
     }

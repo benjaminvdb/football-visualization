@@ -137,6 +137,12 @@ public class SoccerSimulator extends PApplet {
     }
 
     @Override
+    public void mouseClicked() {
+        log.info("received click event, sending coordinates to handler");
+        controller.handleMouseClick(mouseX, mouseY);
+    }
+
+    @Override
     public void keyPressed() {
         if (key == ' ') {
             if (!controller.hasStarted()) {
