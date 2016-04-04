@@ -25,12 +25,6 @@ public class SoccerSimulator extends PApplet {
 
     float SCALE = 10f;
 
-    private static int screenshotCounter = 0;
-
-    private String getScreenshotName() {
-        
-        return ""
-    }
 
     public static Connection getConnection() {
         String username = "root";
@@ -186,9 +180,6 @@ public class SoccerSimulator extends PApplet {
         } else if (key == 'v') {
             System.out.println("Toggle Voronoi Cells");
             controller.toggleComputeVoronoiCells();
-        } else if (key == '`') {
-            this.saveFrame();
-            System.out.print("Saved current frame to file.");
         }
     }
 }

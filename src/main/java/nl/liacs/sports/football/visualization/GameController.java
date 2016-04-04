@@ -82,7 +82,7 @@ public class GameController implements Drawable, Runnable {
     private static final int VORONOI_WINDOW_SIZE = 75;  // the number of frames to average cell scores over
     private GeometryCollection voronoiCells;
     private boolean computeVoronoiCells = true;  // compute Voronoi cells by default
-    private int trackedVoronoiCell = 5;  // turned off by default
+    private int trackedVoronoiCell = 9;  // turned off by default
     private BoundedFIFOArray areaFIFO = new BoundedFIFOArray(VORONOI_WINDOW_SIZE);
 
     public void toggleComputeVoronoiCells() {
@@ -144,7 +144,7 @@ public class GameController implements Drawable, Runnable {
      * @param index
      * @return value based on position in sorted array
      */
-    public double scoreVoronoiCellArea2(int index) {
+    public double scoreVoronoiCellArea(int index) {
         if (voronoiCells != null) {
             double[] areas = computeVoronoiCellsAreas();
             double val = areas[index];
@@ -158,21 +158,6 @@ public class GameController implements Drawable, Runnable {
             double ret = (double) i / (double) areas.length;
             log.trace("area of tracked cell is {}, rank is {}, score is {}", areas[i], i, ret);
             return ret;
-        } else {
-            return 0;
-        }
-    }
-
-    public double scoreVoronoiCellArea(int index) {
-        if (voronoiCells != null) {
-            double[] areas = computeVoronoiCellsAreas();
-            double area = areas[index];
-//            log.debug("area = {}", area);
-
-            double lambda = 0.02;
-            double k = 1;
-
-            return (1 - k * Math.exp(-lambda * area));
         } else {
             return 0;
         }
@@ -197,10 +182,6 @@ public class GameController implements Drawable, Runnable {
             ret[i] = (float) (norm * (Math.abs(comps1[i] - comps2[i])));
         }
         return new Color(ret[0], ret[1], ret[2], ret[3]);
-    }
-
-    public String takeScreenshot() {
-        return null;
     }
 
     /*
@@ -1266,15 +1247,13 @@ public class GameController implements Drawable, Runnable {
                     Point point = new GeometryFactory().createPoint(new Coordinate(trackedX, trackedY));
 
                     if (polygon.contains(point)) {
-                        double score = scoreVoronoiCellArea(i);
-//                        areaFIFO.add(score);
-//                        score = new Mean().evaluate(areaFIFO.getElements());
+                        double score = scoreVoronoiCellArea(trackedVoronoiCell);
+                        areaFIFO.add(score);
+                        score = new Mean().evaluate(areaFIFO.getElements());
 
-//                        float green = (float)(score * 255);
-//                        float red = (float)(255 - (score * 255));
-//                        canvas.fill(red, green, 0, 60f);
-
-                        canvas.fill((float) score * 255f, 60f);
+                        float green = (float)(score * 255);
+                        float red = (float)(255 - (score * 255));
+                        canvas.fill(red, green, 0, 60f);
 
                         canvas.stroke(0f, 0f);
                         canvas.strokeWeight(0f);
