@@ -28,8 +28,7 @@ public class SoccerSimulator extends PApplet {
     private static int screenshotCounter = 0;
 
     private String getScreenshotName() {
-        
-        return ""
+        return "";
     }
 
     public static Connection getConnection() {
@@ -186,6 +185,12 @@ public class SoccerSimulator extends PApplet {
         } else if (key == 'v') {
             System.out.println("Toggle Voronoi Cells");
             controller.toggleComputeVoronoiCells();
+		} else if (key == 'o') {
+            System.out.println("Draw line between opponents over the whole match");
+            controller.toggleDominantOpponent();
+        } else if (key == 'f') {
+            System.out.println("Draw line to future position");
+            controller.toggleLineToFuture();
         } else if (key == '`') {
             this.saveFrame();
             System.out.print("Saved current frame to file.");

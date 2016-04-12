@@ -202,6 +202,60 @@ public class GameController implements Drawable, Runnable {
     public String takeScreenshot() {
         return null;
     }
+	
+	public int[][] DirectOpponent = new int[10][frames];
+	boolean lineToOpponent = false;
+	public void toggleDominantOpponent(){
+		lineToOpponent = !lineToOpponent;
+	}
+	//draw linen between direct opponents which were dominant during the game
+	private void drawLineToOpponents(PApplet canvas, float scale){
+		 DirectOpponent[0][frame] = 7;
+		 DirectOpponent[1][frame] = 9;
+		 DirectOpponent[2][frame] = 8;
+		 DirectOpponent[3][frame] = 5;
+		 DirectOpponent[4][frame] = 1;
+		 DirectOpponent[5][frame] = 6;
+		 DirectOpponent[6][frame] = 0;
+		 DirectOpponent[7][frame] = 4;
+		 DirectOpponent[8][frame] = 3;
+		 DirectOpponent[9][frame] = 2;
+		 for (int player = 0; player < 10; player++) {
+			 int player2 = DirectOpponent[player][frame];
+
+			 PVector player1location = playersPos[player+1][frame];//keeper heeft geen tegenstander, keeper = 0;
+			 PVector player2location = playersPos[player2+12][frame];//keeper en eerste team overslaan
+
+			 float x1 = player1location.x*scale;
+			 float y1 = player1location.y*scale;
+			 float x2 = player2location.x*scale;
+			 float y2 = player2location.y*scale;
+			 if (!redcard(player1location, player2location)) {
+				canvas.line(x1, y1, x2, y2);
+			 }
+		 }
+		 canvas.translate(-simulatorPos.x, -simulatorPos.y);
+    }
+	
+	boolean lineToFuture = false;
+	public void toggleLineToFuture(){
+		lineToFuture = !lineToFuture;
+	}
+	private void drawLineToFuture(PApplet canvas, float scale){
+		for (int player = 0; player < 22; player++) {
+			PVector currentPosition = playersPos[player][frame];
+			PVector futurePosition = playersPos[player][frame + 25]; //position in 1 second will cause cause an nullpointer exception 1 second before the end
+
+			float x1 = currentPosition.x * scale;
+			float y1 = currentPosition.y * scale;
+			float x2 = futurePosition.x * scale;
+			float y2 = futurePosition.y * scale;
+			if (!redcard(currentPosition, futurePosition)) {
+				canvas.line(x1, y1, x2, y2);
+			}
+		}
+	}
+
 
     /*
     //########################################################################################################################################### variabeles used to calculate distances in the field and direct opponents ect Roy's research
@@ -1233,26 +1287,19 @@ public class GameController implements Drawable, Runnable {
         }
 
         //draw line to future him so you know his direction and speed
-//        canvas.translate(simulatorPos.x, simulatorPos.y);
-//        for (int player = 0; player < 22; player++) {
-//            PVector currentPosition = playersPos[player][frame];
-//            PVector futurePosition = playersPos[player][frame + 25]; //position in 1 second will cause cause an nullpointer exception 1 second before the end
-//
-//            float x1 = currentPosition.x * scale;
-//            float y1 = currentPosition.y * scale;
-//            float x2 = futurePosition.x * scale;
-//            float y2 = futurePosition.y * scale;
-//            if (!redcard(currentPosition, futurePosition)) {
-//                //canvas.line(x1, y1, x2, y2);
-//            }
-//        }
-//        canvas.translate(-simulatorPos.x, -simulatorPos.y);
+        canvas.translate(simulatorPos.x, simulatorPos.y);
+		if(lineToFuture){
+			drawLineToFuture(canvas, scale);
+		}
+ //       canvas.translate(-simulatorPos.x, -simulatorPos.y);
 
         //draw line between the direct opponents.
-        //drawline(canvas, scale); //comment this out if you dont load players opponents
-
+        if(lineToOpponent){
+			drawLineToOpponents(canvas, scale); 
+		}
+		
         /* Draw Voronoi cells */
-        canvas.translate(simulatorPos.x, simulatorPos.y);
+//        canvas.translate(simulatorPos.x, simulatorPos.y);
         if (voronoiCells != null) {
             for (int i = 0; i < voronoiCells.getNumGeometries(); i++) {
                 Polygon polygon = (Polygon) voronoiCells.getGeometryN(i);
