@@ -86,6 +86,7 @@ public class SoccerSimulator extends PApplet {
         controller.getball();
         controller.getPlayers();
         controller.getReferees();
+		controller.setBallTeamDistance();
 
         /* We don't need this on every start. */
 //        controller.validateData();

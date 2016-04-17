@@ -42,6 +42,10 @@ public class GameController implements Drawable, Runnable {
     public int[] sections = new int[2];
     // Array of Robots currently registered in this game, 25, 22 players 3 referees
     public List<Robot> robots = new ArrayList<>();
+	//possession of team
+	public int[] ballpossession = new int[frames];
+	//posession of player
+	public int[] playerInPossession = new int[frames];
     //position of the ball per frame
     public PVector[] ballpositions = new PVector[frames];
     //possitions of the referees in the field. this is in meters. left upper corner = 0.0 PVectors have an x and y
@@ -210,21 +214,22 @@ public class GameController implements Drawable, Runnable {
 	}
 	//draw linen between direct opponents which were dominant during the game
 	private void drawLineToOpponents(PApplet canvas, float scale){
-		 DirectOpponent[0][frame] = 7;
-		 DirectOpponent[1][frame] = 9;
-		 DirectOpponent[2][frame] = 8;
-		 DirectOpponent[3][frame] = 5;
-		 DirectOpponent[4][frame] = 1;
-		 DirectOpponent[5][frame] = 6;
-		 DirectOpponent[6][frame] = 0;
-		 DirectOpponent[7][frame] = 4;
-		 DirectOpponent[8][frame] = 3;
-		 DirectOpponent[9][frame] = 2;
+		 DirectOpponent[0][frame] = 7+12;
+		 DirectOpponent[1][frame] = 9+12;
+		 DirectOpponent[2][frame] = 8+12;
+		 DirectOpponent[3][frame] = 5+12;
+		 DirectOpponent[4][frame] = 1+12;
+		 DirectOpponent[5][frame] = 6+12;
+		 DirectOpponent[6][frame] = 0+12;
+		 DirectOpponent[7][frame] = 4+12;
+		 DirectOpponent[8][frame] = 3+12;
+		 DirectOpponent[9][frame] = 2+12;
 		 for (int player = 0; player < 10; player++) {
-			 int player2 = DirectOpponent[player][frame];
+			 int player1 = player+1; //skip the keeper
+			 int player2 = DirectOpponent[player][frame]; 
 
-			 PVector player1location = playersPos[player+1][frame];//keeper heeft geen tegenstander, keeper = 0;
-			 PVector player2location = playersPos[player2+12][frame];//keeper en eerste team overslaan
+			 PVector player1location = playersPos[player1][frame];//keeper heeft geen tegenstander, keeper = 0;
+			 PVector player2location = playersPos[player2][frame];//keeper en eerste team overslaan
 
 			 float x1 = player1location.x*scale;
 			 float y1 = player1location.y*scale;
@@ -815,6 +820,40 @@ public class GameController implements Drawable, Runnable {
         float y2 = pos2.y;
         return Math.sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2)); //also meters per 1/25 second;
     }
+	
+	public void setPlayerInPossession(int frame, double[][] individualdistance){
+		double smallestDistance = Double.MAX_VALUE; 
+		int index = -1;
+		if(ballpossession[frame]==1){
+			for(int player = 0; player<11; player++){
+				if(individualdistance[0][player] < smallestDistance){
+					smallestDistance = individualdistance[0][player];
+					index = player;
+				} 
+			}
+		}else{
+			for(int player = 0; player<11; player++){
+				if(individualdistance[1][player] < smallestDistance){
+					smallestDistance = individualdistance[0][player];
+					index = player+11;
+				} 
+			}
+		}
+		playerInPossession[frame] = index; //speler die het dichts bij de bal is en in het team zit van de possession heeft de bal
+	}
+	
+    public void setBallTeamDistance(){
+		System.out.println("setBallTeamDistance");
+		for(int frame = 0; frame<frames; frame++){
+			double[][] individualdistance = new double[2][11];
+			for(int player = 0; player<22; player++){
+				int team = player / 11;
+				double distance = calculateDistance(playersPos[player][frame], ballpositions[frame]);
+				individualdistance[team][player-team*11] = distance;
+			}
+			setPlayerInPossession(frame, individualdistance);
+		}
+    }
 
     //max ball speed is about 144 kmph = 40 meter per second
     //max running speed is about 36 kmph = 10 meter per second
@@ -953,7 +992,7 @@ public class GameController implements Drawable, Runnable {
                 int i = rs.getInt("frame_id") - 1;
 
                 ballpositions[i] = convert(data_x, data_y, data_z);
-                //ballpossession[i] = rs.getInt("possession");   //is not needed for the visualisation, can be left out
+                ballpossession[i] = rs.getInt("possession");   //is not needed for the visualisation, can be left out
             }
             rs.close();
             stmt.close();
@@ -1288,6 +1327,11 @@ public class GameController implements Drawable, Runnable {
 
         //draw line to future him so you know his direction and speed
         canvas.translate(simulatorPos.x, simulatorPos.y);
+		int ballpossessionplayer = playerInPossession[frame];
+		PVector p = playersPos[ballpossessionplayer][frame];
+		canvas.fill(255,0,0,63);
+		canvas.ellipse(p.x*scale, p.y*scale, 30, 30);
+		
 		if(lineToFuture){
 			drawLineToFuture(canvas, scale);
 		}
